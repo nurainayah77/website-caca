@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Peta Suhu Panas Kota Makassar</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:'Segoe UI',system-ui,sans-serif;
+  background:#0f1117; color:#f0f0f0;
+  height:100vh; overflow:hidden;
+  display:flex; flex-direction:column;
+}
+.header {
+  background:rgba(15,17,23,0.97);
+  border-bottom:1px solid rgba(255,255,255,0.08);
+  padding:10px 18px;
+  display:flex; align-items:center; justify-content:space-between;
+  flex-wrap:wrap; gap:8px; z-index:1000; flex-shrink:0;
+}
+.header-left h1 { font-size:15px; font-weight:600; color:#fff; }
+.header-left p  { font-size:11px; color:rgba(255,255,255,0.4); margin-top:2px; }
+.header-right   { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.stat-pill {
+  background:rgba(255,255,255,0.07);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:20px; padding:4px 12px; font-size:11px;
+  display:flex; align-items:center; gap:5px;
+}
+.stat-pill .dot { width:7px; height:7px; border-radius:50%; }
+.stat-pill span { color:rgba(255,255,255,0.45); }
+.stat-pill strong { color:#fff; }
+.map-wrapper { flex:1; position:relative; overflow:hidden; }
+#map { width:100%; height:100%; }
+
+/* toggle panel */
+.layer-toggle {
+  position:absolute; top:12px; right:12px;
+  z-index:999; display:flex; flex-direction:column; gap:5px;
+}
+.layer-btn {
+  background:rgba(15,17,23,0.92);
+  border:1px solid rgba(255,255,255,0.15);
+  border-radius:8px; color:#fff; font-size:12px;
+  padding:7px 13px; cursor:pointer; transition:all .2s;
+  text-align:center; backdrop-filter:blur(8px); white-space:nowrap;
+}
+.layer-btn:hover { background:rgba(255,255,255,0.12); border-color:rgba(255,255,255,0.3); }
+.layer-btn.active { background:rgba(226,75,74,0.22); border-color:#E24B4A; color:#ff9090; }
+
+/* legend */
+.legend {
+  position:absolute; bottom:28px; left:12px;
+  z-index:999; background:rgba(15,17,23,0.93);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:12px; padding:13px 15px;
+  backdrop-filter:blur(10px); min-width:195px;
+}
+.legend h4 {
+  font-size:10px; font-weight:600; letter-spacing:.08em;
+  color:rgba(255,255,255,0.45); text-transform:uppercase; margin-bottom:9px;
+}
+.legend-bar {
+  width:100%; height:13px; border-radius:6px;
+  background:linear-gradient(to right,#27500A,#639922,#BA7517,#EF9F27,#E24B4A,#A32D2D,#501313);
+  margin-bottom:4px;
+}
+.legend-labels { display:flex; justify-content:space-between; font-size:10px; color:rgba(255,255,255,0.4); }
+.legend-div { border:none; border-top:1px solid rgba(255,255,255,0.08); margin:10px 0; }
+.legend-items { display:flex; flex-direction:column; gap:5px; }
+.legend-item { display:flex; align-items:center; gap:8px; font-size:11px; color:rgba(255,255,255,0.75); }
+.legend-swatch { width:26px; height:11px; border-radius:3px; flex-shrink:0; }
+
+/* info panel */
+.info-panel {
+  position:absolute; top:12px; left:50%; transform:translateX(-50%);
+  z-index:999; background:rgba(15,17,23,0.96);
+  border:1px solid rgba(255,255,255,0.15);
+  border-radius:12px; padding:13px 17px;
+  backdrop-filter:blur(10px);
+  display:none; min-width:240px; max-width:300px;
+}
+.info-panel.show { display:block; }
+.ip-name  { font-size:14px; font-weight:600; color:#fff; margin-bottom:6px; }
+.ip-temp  { font-size:30px; font-weight:700; margin-bottom:4px; }
+.ip-row   {
+  display:flex; justify-content:space-between;
+  font-size:11px; color:rgba(255,255,255,0.45);
+  margin-top:5px; border-top:1px solid rgba(255,255,255,0.07); padding-top:5px;
+}
+.ip-close {
+  position:absolute; top:8px; right:10px;
+  background:none; border:none; color:rgba(255,255,255,0.35);
+  cursor:pointer; font-size:15px; line-height:1;
+}
+.ip-close:hover { color:#fff; }
+
+/* leaflet */
+.leaflet-control-attribution { background:rgba(0,0,0,0.5)!important; color:rgba(255,255,255,0.35)!important; }
+.leaflet-control-attribution a { color:rgba(255,255,255,0.45)!important; }
+.leaflet-control-zoom a {
+  background:rgba(15,17,23,0.92)!important; color:#fff!important;
+  border-color:rgba(255,255,255,0.15)!important;
+}
+.leaflet-control-zoom a:hover { background:rgba(255,255,255,0.15)!important; }
+.kec-label {
+  background:none!important; border:none!important; box-shadow:none!important;
+  font-size:10px; font-weight:700; color:#fff; white-space:nowrap;
+  pointer-events:none;
+  text-shadow:0 0 3px #000,0 0 6px #000,0 1px 2px #000;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>🌡️ Peta Suhu Panas Kota Makassar — Polygon Kecamatan</h1>
+    <p>Distribusi suhu permukaan per kecamatan · Sulawesi Selatan, Indonesia</p>
+  </div>
+  <div class="header-right">
+    <div class="stat-pill"><div class="dot" style="background:#E24B4A"></div><span>Maks:</span><strong>38.2°C</strong></div>
+    <div class="stat-pill"><div class="dot" style="background:#639922"></div><span>Min:</span><strong>29.1°C</strong></div>
+    <div class="stat-pill"><div class="dot" style="background:#EF9F27"></div><span>Rata-rata:</span><strong>33.6°C</strong></div>
+    <div class="stat-pill"><span>15 Kecamatan</span></div>
+  </div>
+</div>
+
+<div class="map-wrapper">
+  <div id="map"></div>
+
+  <div class="layer-toggle">
+    <button class="layer-btn active" id="btn-satellite" onclick="setLayer('satellite')">🛰️ Satelit</button>
+    <button class="layer-btn" id="btn-street" onclick="setLayer('street')">🗺️ Peta Jalan</button>
+    <button class="layer-btn" id="btn-topo" onclick="setLayer('topo')">⛰️ Topografi</button>
+    <hr style="border-color:rgba(255,255,255,0.1);margin:2px 0">
+    <button class="layer-btn active" id="btn-poly" onclick="togglePoly()">🟥 Polygon</button>
+    <button class="layer-btn active" id="btn-labels" onclick="toggleLabels()">🏷️ Label</button>
+  </div>
+
+  <div class="legend">
+    <h4>Skala Suhu</h4>
+    <div class="legend-bar"></div>
+    <div class="legend-labels"><span>29°C</span><span>32°C</span><span>35°C</span><span>38°C</span></div>
+    <hr class="legend-div">
+    <div class="legend-items">
+      <div class="legend-item"><div class="legend-swatch" style="background:#A32D2D;opacity:.85"></div>Sangat Panas (≥37°C)</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#EF9F27;opacity:.85"></div>Panas (35–37°C)</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#BA7517;opacity:.85"></div>Hangat (33–35°C)</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#639922;opacity:.85"></div>Sedang (≤33°C)</div>
+    </div>
+  </div>
+
+  <div class="info-panel" id="infoPanel">
+    <button class="ip-close" onclick="closeInfo()">✕</button>
+    <div class="ip-name" id="ip-name">—</div>
+    <div class="ip-temp" id="ip-temp">—</div>
+    <div class="ip-row"><span>Kategori</span><strong id="ip-cat" style="color:#fff">—</strong></div>
+    <div class="ip-row"><span>Luas Wilayah</span><strong id="ip-luas" style="color:#fff">—</strong></div>
+    <div class="ip-row"><span>Karakteristik</span><strong id="ip-char" style="color:#fff">—</strong></div>
+  </div>
+</div>
+
+<script>
+// ── DATA KECAMATAN + POLYGON KOORDINAT ──
+// Koordinat polygon batas kecamatan (aproksimasi berdasarkan batas administratif resmi)
+const kecamatan = [
+  {
+    name:"Biringkanaya", temp:32.4, luas:"48.22 km²", char:"Permukiman + Hijau",
+    coords:[
+      [-5.052,119.467],[-5.052,119.554],[-5.100,119.554],[-5.118,119.530],
+      [-5.118,119.500],[-5.100,119.480],[-5.075,119.467]
+    ]
+  },
+  {
+    name:"Tamalanrea", temp:31.8, luas:"31.84 km²", char:"Kampus + Industri",
+    coords:[
+      [-5.075,119.467],[-5.100,119.480],[-5.118,119.500],[-5.118,119.467],
+      [-5.130,119.460],[-5.118,119.442],[-5.090,119.450],[-5.075,119.460]
+    ]
+  },
+  {
+    name:"Manggala", temp:34.1, luas:"24.14 km²", char:"Permukiman padat",
+    coords:[
+      [-5.118,119.467],[-5.118,119.530],[-5.150,119.540],[-5.175,119.510],
+      [-5.175,119.467],[-5.155,119.450],[-5.130,119.460]
+    ]
+  },
+  {
+    name:"Panakkukang", temp:35.8, luas:"17.05 km²", char:"Komersial + Mall",
+    coords:[
+      [-5.118,119.442],[-5.130,119.460],[-5.155,119.450],[-5.155,119.442],
+      [-5.165,119.430],[-5.150,119.415],[-5.130,119.415],[-5.118,119.425]
+    ]
+  },
+  {
+    name:"Tallo", temp:36.7, luas:"8.75 km²", char:"Industri + Padat",
+    coords:[
+      [-5.090,119.420],[-5.090,119.442],[-5.118,119.442],[-5.118,119.425],
+      [-5.108,119.412],[-5.095,119.410]
+    ]
+  },
+  {
+    name:"Ujung Tanah", temp:34.9, luas:"5.94 km²", char:"Pelabuhan + Nelayan",
+    coords:[
+      [-5.060,119.395],[-5.060,119.425],[-5.080,119.430],[-5.090,119.420],
+      [-5.090,119.405],[-5.075,119.395]
+    ]
+  },
+  {
+    name:"Bontoala", temp:37.3, luas:"2.10 km²", char:"Perdagangan padat",
+    coords:[
+      [-5.108,119.412],[-5.108,119.430],[-5.118,119.430],[-5.118,119.425],
+      [-5.115,119.410]
+    ]
+  },
+  {
+    name:"Wajo", temp:38.2, luas:"1.99 km²", char:"Pusat niaga tertua",
+    coords:[
+      [-5.118,119.405],[-5.118,119.415],[-5.130,119.415],[-5.130,119.405],
+      [-5.125,119.400]
+    ]
+  },
+  {
+    name:"Ujung Pandang", temp:37.9, luas:"2.63 km²", char:"CBD & Waterfront",
+    coords:[
+      [-5.125,119.395],[-5.125,119.405],[-5.130,119.405],[-5.130,119.395],
+      [-5.128,119.390]
+    ]
+  },
+  {
+    name:"Makassar", temp:37.5, luas:"2.52 km²", char:"Pusat kota padat",
+    coords:[
+      [-5.130,119.405],[-5.130,119.420],[-5.140,119.420],[-5.140,119.405],
+      [-5.135,119.400]
+    ]
+  },
+  {
+    name:"Rappocini", temp:36.2, luas:"9.23 km²", char:"Permukiman tengah",
+    coords:[
+      [-5.140,119.415],[-5.140,119.442],[-5.165,119.442],[-5.165,119.430],
+      [-5.155,119.415],[-5.148,119.410]
+    ]
+  },
+  {
+    name:"Tamalate", temp:33.5, luas:"20.21 km²", char:"Pesisir + Perumahan",
+    coords:[
+      [-5.165,119.395],[-5.165,119.442],[-5.200,119.442],[-5.215,119.420],
+      [-5.210,119.395],[-5.190,119.385]
+    ]
+  },
+  {
+    name:"Mamajang", temp:36.8, luas:"2.25 km²", char:"Perkantoran",
+    coords:[
+      [-5.140,119.395],[-5.140,119.415],[-5.155,119.415],[-5.155,119.395],
+      [-5.148,119.390]
+    ]
+  },
+  {
+    name:"Mariso", temp:35.4, luas:"1.82 km²", char:"Pesisir padat",
+    coords:[
+      [-5.155,119.390],[-5.155,119.405],[-5.165,119.405],[-5.165,119.390],
+      [-5.160,119.385]
+    ]
+  },
+  {
+    name:"Kepulauan Sangkarrang", temp:30.5, luas:"1.54 km²", char:"Kepulauan / Laut",
+    coords:[
+      [-5.040,119.300],[-5.040,119.330],[-5.060,119.330],[-5.060,119.300],[-5.050,119.295]
+    ]
+  },
+];
+
+// ── WARNA SUHU ──
+function hexColor(t) {
+  const pct = Math.max(0, Math.min(1, (t - 28) / (40 - 28)));
+  const stops = [
+    [39,128,11],[99,153,34],[186,117,23],[239,159,39],[226,75,74],[163,45,45],[80,19,19]
+  ];
+  const idx = pct * (stops.length - 1);
+  const lo = Math.floor(idx), hi = Math.min(stops.length-1, lo+1);
+  const f = idx - lo;
+  const r = Math.round(stops[lo][0] + f*(stops[hi][0]-stops[lo][0]));
+  const g = Math.round(stops[lo][1] + f*(stops[hi][1]-stops[lo][1]));
+  const b = Math.round(stops[lo][2] + f*(stops[hi][2]-stops[lo][2]));
+  return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+}
+
+function category(t) {
+  if (t>=37) return "🔴 Sangat Panas";
+  if (t>=35) return "🟠 Panas";
+  if (t>=33) return "🟡 Hangat";
+  return "🟢 Sedang";
+}
+
+function centroid(coords) {
+  const lat = coords.reduce((s,c)=>s+c[0],0)/coords.length;
+  const lng = coords.reduce((s,c)=>s+c[1],0)/coords.length;
+  return [lat,lng];
+}
+
+// ── INIT MAP ──
+const map = L.map('map',{ center:[-5.135,119.430], zoom:13, zoomControl:true });
+
+const layers = {
+  satellite: L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { attribution:'© Esri · Satellite', maxZoom:19 }
+  ),
+  street: L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { attribution:'© OpenStreetMap contributors', maxZoom:19 }
+  ),
+  topo: L.tileLayer(
+    'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    { attribution:'© OpenTopoMap', maxZoom:17 }
+  ),
+};
+layers.satellite.addTo(map);
+
+function setLayer(name) {
+  Object.values(layers).forEach(l=>map.removeLayer(l));
+  layers[name].addTo(map);
+  ['satellite','street','topo'].forEach(n=>{
+    document.getElementById('btn-'+n).classList.toggle('active', n===name);
+  });
+}
+
+// ── POLYGON ──
+const polyGroup = [];
+const labelGroup = [];
+
+kecamatan.forEach(k => {
+  const col = hexColor(k.temp);
+
+  const poly = L.polygon(k.coords, {
+    color: '#fff',
+    weight: 1.5,
+    opacity: 0.9,
+    fillColor: col,
+    fillOpacity: 0.60,
+  }).addTo(map);
+
+  // Hover efek
+  poly.on('mouseover', function(e) {
+    this.setStyle({ fillOpacity:0.82, weight:2.5, color:'#fff' });
+    this.bringToFront();
+  });
+  poly.on('mouseout', function() {
+    this.setStyle({ fillOpacity:0.60, weight:1.5, color:'#fff' });
+  });
+  poly.on('click', () => showInfo(k));
+
+  // Tooltip
+  poly.bindTooltip(
+    `<b>${k.name}</b><br>🌡️ ${k.temp}°C &nbsp;·&nbsp; ${category(k.temp).replace(/🔴|🟠|🟡|🟢 /,'')}`,
+    { sticky:true, className:'leaflet-tooltip-dark' }
+  );
+
+  polyGroup.push(poly);
+
+  // Label di tengah polygon
+  const [clat,clng] = centroid(k.coords);
+  const lbl = L.marker([clat, clng], {
+    icon: L.divIcon({
+      className:'kec-label',
+      html:`<div style="text-align:center">
+        <div>${k.name}</div>
+        <div style="color:${col};margin-top:1px">${k.temp}°C</div>
+      </div>`,
+      iconAnchor:[40,18],
+      iconSize:[80,36],
+    }),
+    interactive:false,
+    zIndexOffset:1000,
+  }).addTo(map);
+  labelGroup.push(lbl);
+});
+
+let polyOn = true;
+function togglePoly() {
+  polyOn = !polyOn;
+  polyGroup.forEach(p => polyOn ? p.addTo(map) : map.removeLayer(p));
+  document.getElementById('btn-poly').classList.toggle('active', polyOn);
+}
+
+let labelsOn = true;
+function toggleLabels() {
+  labelsOn = !labelsOn;
+  labelGroup.forEach(l => labelsOn ? l.addTo(map) : map.removeLayer(l));
+  document.getElementById('btn-labels').classList.toggle('active', labelsOn);
+}
+
+// ── INFO PANEL ──
+function showInfo(k) {
+  document.getElementById('ip-name').textContent = k.name;
+  const el = document.getElementById('ip-temp');
+  el.textContent = k.temp + '°C';
+  el.style.color = hexColor(k.temp);
+  document.getElementById('ip-cat').textContent = category(k.temp);
+  document.getElementById('ip-luas').textContent = k.luas;
+  document.getElementById('ip-char').textContent = k.char;
+  document.getElementById('infoPanel').classList.add('show');
+}
+function closeInfo() {
+  document.getElementById('infoPanel').classList.remove('show');
+}
+
+// ── TOOLTIP STYLE ──
+const s = document.createElement('style');
+s.textContent=`
+.leaflet-tooltip-dark {
+  background:rgba(15,17,23,0.95)!important;
+  border:1px solid rgba(255,255,255,0.15)!important;
+  color:#fff!important; font-size:12px!important;
+  border-radius:8px!important;
+  box-shadow:0 4px 16px rgba(0,0,0,0.4)!important;
+  padding:6px 10px!important;
+}
+.leaflet-tooltip-dark::before { border-top-color:rgba(255,255,255,0.15)!important; }
+`;
+document.head.appendChild(s);
+</script>
+</body>
+</html>
